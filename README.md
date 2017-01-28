@@ -1,0 +1,81 @@
+# Python library for Yeelight Bedside lamp
+
+This is an ongoing effort to create a python library for [Yeelight's bedside lamp](http://www.yeelight.com/en_US/product/yeelight-ctd).
+
+Patches are very welcome, if you intent to contribute, please do note that quite a lot of the protocol is already figured out but lacking an interfaces.
+
+Currently supported features:
+* State
+* color mode (white, color, flow)
+* Temperature
+* Brightness
+
+TBD:
+* Sleep mode, wakeup mode, scheduling
+* Flow mode
+* Other features?
+
+# Usage
+
+Try
+```
+$ yeelight --help
+```
+and
+```
+$ yeelight [command] --help
+```
+
+For debugging you can pass -d/--debug, adding it second time will also print out the debug from bluepy.
+
+## Finding supported devices
+
+```
+$ yeelightbt scan
+Scanning for 5 seconds
+Devices found:
+  f8:24:41:xx:xx:xx (XMCTD_XXXX), rssi=-83
+
+```
+
+## Reading status & states
+
+To avoid passing ```--mac``` for every call, set the following environment variable:
+
+```
+export YEELIGHTBT_MAC=AA:BB:CC:11:22:33
+```
+
+```
+$ yeelightbt
+
+MAC: f8:24:41:xx:xx:xx
+  Mode: LampMode.White
+  Color: (0, 0, 0)
+  Temperature: 5000
+  Brightness: 50
+```
+
+```
+$ yeelightbt temperature
+
+Temperature: 5000
+```
+
+```
+$ yeelightbt color 255 0 0
+Setting color: 255 0 0
+```
+
+# Homeassistant support
+
+There is also a WIP [Home Assistant](https://home-assistant.io/) component stored inside custom_components.
+Just copy the file over to your custom components directory and add the following into your config:
+
+```
+light:
+  - platform: yeelight_bt
+    devices:
+      Bedside:
+        mac: 'f8:24:41:xx:xx:xx'
+```
