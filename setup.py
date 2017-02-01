@@ -3,7 +3,7 @@ from setuptools import setup
 setup(
     name='python-yeelightbt',
 
-    version='0.0.1',
+    version='0.0.2',
     description='Python library for interfacing with yeelight bedside lamp',
     url='https://github.com/rytilahti/python-yeelightbt',
 
@@ -26,7 +26,7 @@ setup(
     install_requires=['bluepy'],
     entry_points={
         'console_scripts': [
-            'yeelightbt=main:main',
+            'yeelightbt=yeelightbt.cli:cli',
         ],
     },
 )
