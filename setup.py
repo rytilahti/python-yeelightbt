@@ -23,7 +23,7 @@ setup(
 
     packages=["yeelightbt"],
 
-    install_requires=['bluepy', 'construct'],
+    install_requires=['bluepy', 'construct', 'click'],
     entry_points={
         'console_scripts': [
             'yeelightbt=yeelightbt.cli:cli',
