@@ -15,6 +15,21 @@ TBD:
 * Flow mode
 * Other features?
 
+# Installation
+
+```
+pip install git+https://github.com/rytilahti/python-yeelightbt/
+```
+
+In case you are getting "No such file or directory" error for bluepy-helper, you have to go into bluepy's directory and run make there.
+It is also a good idea to let the helper to have capabilities for accessing the bluetooth devices without being root, e.g., by doing the following:
+
+```
+setcap cap_net_admin,cap_net_raw+eip bluepy-helper
+```
+
+And then simply try if the scanning works.
+
 # Usage
 
 Try

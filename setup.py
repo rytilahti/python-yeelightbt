@@ -1,5 +1,7 @@
 from setuptools import setup
 
+with open('yeelightbt/version.py') as f: exec(f.read())
+
 setup(
     name='python-yeelightbt',
 
