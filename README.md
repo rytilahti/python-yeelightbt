@@ -85,7 +85,7 @@ Setting color: 255 0 0
 # Homeassistant support
 
 There is also a WIP [Home Assistant](https://home-assistant.io/) component stored inside custom_components.
-Just copy the file over to your custom components directory and add the following into your config:
+Just copy the file over to `~/.homeassistant/custom_components/light/` and add the following into your config:
 
 ```
 light:
