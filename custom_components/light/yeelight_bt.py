@@ -74,6 +74,7 @@ class YeelightBT(Light):
         self._effect_list = LIGHT_EFFECT_LIST
         self._effect = 'none'
         self._available = False
+        self._is_updating = False
 
         self.__dev = None
 
@@ -144,6 +145,7 @@ class YeelightBT(Light):
         self._brightness = 255 * (int(self._dev.brightness) / 100)
         self._available = self._dev.available
         self._state = self._dev.is_on
+
         if self._dev.mode == LampMode.White:
             self._ct = int(kelvin_to_mired(self._dev.temperature))
             # when in white mode, rgb is not set so we calculate it ourselves
@@ -155,13 +157,21 @@ class YeelightBT(Light):
         _LOGGER.debug("available: %s state: %s rgb: %s ct: %s",
                       self._available, self._state, self._rgb, self._ct)
 
-        self.update_ha_state()
+
+        self._is_updating = False
+        self.schedule_update_ha_state()
 
     def update(self):
         # Note, update should only start fetching,
         # followed by asynchronous updates through notifications.
-        with self._dev:
-            self._dev.state()
+        if self._is_updating:
+            return
+        try:
+            with self._dev:
+                self._dev.state()
+        except Exception as ex:
+            _LOGGER.error("Got exception: %s" % ex)
+            self._is_updating = False
 
     def turn_on(self, **kwargs):
         """Turn the light on."""
@@ -170,7 +180,7 @@ class YeelightBT(Light):
             if ATTR_RGB_COLOR in kwargs:
                 rgb = kwargs[ATTR_RGB_COLOR]
                 self._rgb = rgb
-                self._dev.set_color(rgb[0], rgb[1], rgb[2])
+                self._dev.set_color(rgb[0], rgb[1], rgb[2], int(self._brightness / 255 * 100))
 
             if ATTR_COLOR_TEMP in kwargs:
                 mireds = kwargs[ATTR_COLOR_TEMP]
