@@ -29,6 +29,7 @@ SOFTWARE.
 """
 import logging
 import codecs
+import time
 
 from bluepy import btle
 
@@ -67,8 +68,10 @@ class BTLEConnection(btle.DefaultDelegate):
             self._conn.disconnect()
             self._conn = None
 
-    def wait(self, timeout):
-        self._conn.waitForNotifications(timeout=timeout)
+    def wait(self, sec):
+        end = time.time() + sec
+        while time.time() < end:
+            self._conn.waitForNotifications(timeout=0.1)
 
     def get_services(self):
         return self._conn.getServices()
@@ -99,7 +102,7 @@ class BTLEConnection(btle.DefaultDelegate):
         _LOGGER.debug("Writing %s to %s with with_response=%s", codecs.encode(value, 'hex'), handle, with_response)
         res = self._conn.writeCharacteristic(handle, value, withResponse=with_response)
         if timeout:
-            self._conn.waitForNotifications(timeout)
+            self.wait(timeout)
 
         return res
 

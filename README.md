@@ -1,17 +1,18 @@
 # Python library for Yeelight Bedside lamp
 
-This is an ongoing effort to create a python library for [Yeelight's bedside lamp](http://www.yeelight.com/en_US/product/yeelight-ctd).
+This is an ongoing effort to create a python library for [Yeelight's bedside lamp](http://www.yeelight.com/en_US/product/yeelight-ctd) and Yeelight Candela.
+Candelas support only setting the light on and off, and adjusting the brightness.
 
-Patches are very welcome, if you intent to contribute, please do note that quite a lot of the protocol is already figured out but lacking an interfaces.
+Patches are very welcome, if you intent to contribute, please do note that quite a lot of the protocol is already figured out but lacking interfaces.
 
 Currently supported features:
 * State
-* color mode (white, color, flow)
+* Color mode (white, color, flow)
 * Temperature
 * Brightness
+* Sleep, wakeup & scheduling (partially)
 
 TBD:
-* Sleep mode, wakeup mode, scheduling
 * Flow mode
 * Other features?
 
@@ -28,17 +29,17 @@ It is also a good idea to let the helper to have capabilities for accessing the 
 setcap cap_net_admin,cap_net_raw+eip bluepy-helper
 ```
 
-And then simply try if the scanning works.
+And then simply try if the scanning works. You can use pass '-dd' as option to the command to see the debug messages from bluepy in case it is not working.
 
 # Usage
 
 Try
 ```
-$ yeelight --help
+$ yeelightbt --help
 ```
 and
 ```
-$ yeelight [command] --help
+$ yeelightbt [command] --help
 ```
 
 For debugging you can pass -d/--debug, adding it second time will also print out the debug from bluepy.

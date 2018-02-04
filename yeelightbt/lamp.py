@@ -1,11 +1,12 @@
 import struct
 import codecs
 import logging
+import time
+import threading
 from .connection import BTLEConnection
-from .structures import Request, Response
+from .structures import Request, Response, StateResult
 
 _LOGGER = logging.getLogger(__name__)
-
 
 def cmd(cmd):
     def _wrap(self, *args, **kwargs):
@@ -29,13 +30,14 @@ def cmd(cmd):
         try_count = 3
         while try_count > 0:
             try:
-                res = self._conn.make_request(self.WRITE_HANDLE,
-                                              Request.build(query),
-                                              timeout=wait)
+                res = self.control_char.write(Request.build(query),
+                                              withResponse=True)
+                self._conn.wait(wait)
+
                 return res
             except Exception as ex:
-                _LOGGER.error("got exception, tries left %s: %s",
-                              try_count, ex)
+                _LOGGER.error("got exception on %s, tries left %s: %s",
+                              query, try_count, ex)
                 _ex = ex
                 try_count -= 1
                 self.connect()
@@ -46,9 +48,8 @@ def cmd(cmd):
 
 
 class Lamp:
-    NOTIFY_HANDLE = 0x15
     REGISTER_NOTIFY_HANDLE = 0x16
-    WRITE_HANDLE = 0x12
+    MAIN_UUID =   "8e2f0cbd-1a66-4b53-ace6-b494e25f87bd"
     NOTIFY_UUID = "8f65073d-9f57-4aaa-afea-397d19d5bbeb"
     CONTROL_UUID = "aa7d3f34-2d4f-41e0-807f-52fbf8cf7443"
 
@@ -64,7 +65,6 @@ class Lamp:
         self._status_cb = status_cb
         self._keep_connection = keep_connection
         self._wait_after_call = wait_after_call
-        import threading
         self._lock = threading.RLock()
         self._conn = None
 
@@ -84,8 +84,18 @@ class Lamp:
         if self._conn:
             self._conn.disconnect()
         self._conn = BTLEConnection(self._mac)
-        self._conn.set_callback(self.NOTIFY_HANDLE, self.handle_notification)
         self._conn.connect()
+
+        notify_char = self._conn.get_characteristics(Lamp.NOTIFY_UUID)
+        self.notify_handle = notify_char.pop().getHandle()
+        _LOGGER.debug("got notify handle: %s" % self.notify_handle)
+        self._conn.set_callback(self.notify_handle, self.handle_notification)
+
+        control_chars = self._conn.get_characteristics(Lamp.CONTROL_UUID)
+        self.control_char = control_chars.pop()
+        self.control_handle = self.control_char.getHandle()
+        _LOGGER.debug("got control handle: %s" % self.control_handle)
+
         # We need to register to receive notifications
         self._conn.make_request(self.REGISTER_NOTIFY_HANDLE,
                                 struct.pack("<BB", 0x01, 0x00),
@@ -114,7 +124,9 @@ class Lamp:
         return "Pair"
 
     def wait(self, sec):
-        self._conn.wait(sec)
+        end = time.time() + sec
+        while time.time() < end:
+            self._conn.wait(0.1)
 
     @property
     def is_on(self):
@@ -130,7 +142,35 @@ class Lamp:
 
     @cmd
     def get_name(self):
-        return "GetName"
+        return "GetName", {"wait": 0.5}
+
+    @cmd
+    def get_scene(self, scene_id):
+        return "GetScene", {"id": scene_id}
+
+    @cmd
+    def set_scene(self, scene_id, scene_name):
+        return "SetScene", {"scene_id": scene_id, "text": scene_name}
+
+    @cmd
+    def get_version_info(self):
+        return "GetVersion"
+
+    @cmd
+    def get_serial_number(self):
+        return "GetSerialNumber"
+
+    @cmd
+    def get_time(self):
+        return "GetTime"
+
+    @cmd
+    def set_time(self, new_time):
+        return "SetTime", {"time": new_time}
+
+    @cmd
+    def get_nightmode(self):
+        return "GetNightMode"
 
     @cmd
     def get_statistics(self):
@@ -144,24 +184,20 @@ class Lamp:
     def get_night_mode(self):
         return "GetNightMode"
 
-    @cmd
-    def get_sleep_timer(self):
-        return "GetSleepTimer"
-
     @property
     def temperature(self):
         return self._temperature
 
     @cmd
-    def set_temperature(self, kelvin):
-        return "SetTemperature", {"temperature": kelvin}
+    def set_temperature(self, kelvin: int, brightness: int):
+        return "SetTemperature", {"temperature": kelvin, "brightness": brightness}
 
     @property
     def brightness(self):
         return self._brightness
 
     @cmd
-    def set_brightness(self, brightness):
+    def set_brightness(self, brightness: int):
         return "SetBrightness", {"brightness": brightness}
 
     @property
@@ -169,12 +205,24 @@ class Lamp:
         return self._rgb
 
     @cmd
-    def set_color(self, red, green, blue):
-        return "SetColor", {"red": red, "green": green, "blue": blue}
+    def set_color(self, red: int, green: int, blue: int, brightness: int):
+        return "SetColor", {"red": red, "green": green, "blue": blue, "brightness": brightness}
 
     @cmd
-    def state(self):
-        return "GetState"
+    def state(self) -> StateResult:
+        return "GetState", {"wait": 0.5}
+
+    @cmd
+    def get_alarm(self, number):
+        return "GetAlarm", {"id": number, "wait": 0.5}
+
+    @cmd
+    def get_flow(self, number):
+        return "GetSimpleFlow", {"id": number, "wait": 0.5}
+
+    @cmd
+    def get_sleep(self):
+        return "GetSleepTimer", {"wait": 0.5}
 
     def __str__(self):
         return "<Lamp %s is_on(%s) mode(%s) rgb(%s) brightness(%s) colortemp(%s)>" % (
@@ -183,12 +231,13 @@ class Lamp:
     def handle_notification(self, data):
         _LOGGER.debug("<< %s", codecs.encode(data, 'hex'))
         res = Response.parse(data)
+        print(res)
         if res.type == "StateResult":
-            self._is_on = res.payload.state
-            self._mode = res.payload.mode
-            self._rgb = res.payload.color
-            self._brightness = res.payload.brightness
-            self._temperature = res.payload.temperature
+            self._is_on = res.state
+            self._mode = res.mode
+            self._rgb = (res.red, res.green, res.blue, res.white)
+            self._brightness = res.brightness
+            self._temperature = res.temperature
 
             if self._status_cb:
                 self._status_cb(self)
@@ -196,7 +245,7 @@ class Lamp:
             _LOGGER.debug("pairing res: %s", res)
 
             if self._paired_cb:
-                self._paired_cb(res.payload)
+                self._paired_cb(res)
 
         else:
             _LOGGER.info("Unhandled cb: %s", res)
