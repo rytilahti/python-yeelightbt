@@ -25,6 +25,7 @@ setup(
 
     packages=["yeelightbt"],
 
+    python_requires='>=3.4',
     install_requires=['bluepy', 'construct', 'click'],
     entry_points={
         'console_scripts': [
