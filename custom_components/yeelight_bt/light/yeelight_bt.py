@@ -16,7 +16,7 @@ from homeassistant.const import CONF_DEVICES, CONF_NAME, CONF_MAC
 from homeassistant.components.light import (
     ATTR_BRIGHTNESS, ATTR_COLOR_TEMP, ATTR_EFFECT,
     ATTR_RGB_COLOR, SUPPORT_BRIGHTNESS,
-    SUPPORT_COLOR_TEMP, SUPPORT_EFFECT, SUPPORT_RGB_COLOR, SUPPORT_WHITE_VALUE,
+    SUPPORT_COLOR_TEMP, SUPPORT_EFFECT, SUPPORT_COLOR, SUPPORT_WHITE_VALUE,
     Light, PLATFORM_SCHEMA)
 
 from homeassistant.util.color import (
@@ -40,7 +40,7 @@ LIGHT_EFFECT_LIST = ['flow', 'none']
 
 SUPPORT_YEELIGHTBT = (SUPPORT_BRIGHTNESS | SUPPORT_COLOR_TEMP |
                       # SUPPORT_EFFECT |
-                      SUPPORT_RGB_COLOR | SUPPORT_WHITE_VALUE)
+                      SUPPORT_COLOR | SUPPORT_WHITE_VALUE)
 
 _LOGGER = logging.getLogger(__name__)
 
