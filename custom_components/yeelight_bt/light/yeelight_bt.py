@@ -155,7 +155,7 @@ class YeelightBT(Light):
         _LOGGER.debug("available: %s state: %s rgb: %s ct: %s",
                       self._available, self._state, self._rgb, self._ct)
 
-        self.update_ha_state()
+        self.schedule_update_ha_state()
 
     def update(self):
         # Note, update should only start fetching,
