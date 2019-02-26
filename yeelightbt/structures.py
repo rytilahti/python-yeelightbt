@@ -1,24 +1,26 @@
 """ This file contains the protocol structures. """
 import logging
 import datetime
-from construct import (Struct, Int8ub, Int16ub, Const, Padded, Byte, Enum, Bytes, If, FlagsEnum,
-                       GreedyBytes, Switch, Pass, this, Probe, Default, PascalString, Seek,
-                       Embedded, Flag, BytesInteger,
-                       SymmetricMapping, Adapter)
-import enum
+from construct import (
+    Bytes, GreedyBytes, Byte, Int16ub, Byte, BytesInteger, PascalString, 
+    Enum, FlagsEnum, Flag, Mapping, Int8ub,
+    Struct, Embedded, EmbeddedSwitch, Const, Padded, If, Switch, 
+    Pass, Default, Seek, Adapter, ExprAdapter, this, Probe)
 
 _LOGGER = logging.getLogger(__name__)
 
 # Some help from https://github.com/Marcocanc/node-mi-lamp/blob/master/notes.md
 
-PairingStatus = "status" / Struct(
+PairingStatus = Struct(
     "pairing_status" / Enum(Byte,
-                            PairRequest=0x01,
-                            PairSuccess=0x02,
-                            PairFailed=0x03,
-                            PairedDevice=0x04,
-                            UnknownState=0x06,
-                            Disconnected=0x07) # not documented?
+        PairRequest=0x01,
+        PairSuccess=0x02,
+        PairFailed=0x03,
+        PairedDevice=0x04,
+        UnknownState=0x06,
+        Disconnected=0x07,
+        # not documented?
+    ),
 )
 
 # Name doesn't fit to one element, so there's an index I assume..
@@ -29,13 +31,13 @@ PairingStatus = "status" / Struct(
 # >>> x
 # b'CQ\x01\x01\x08ide Lamp\x00\x00\x00\x00\x00'
 
-Name = "name" / Struct(
+Name = Struct(
     "id" / Byte,
     "index" / Byte, # convert greeedystring to use this
     "text" / PascalString(Byte, "ascii"),
 )
 
-Version = "version" / Struct(
+Version = Struct(
     "currentrunning" / Enum(Byte, App1=0x01, App2=0x02, Candela=0x31),
     "hw_version" / Int16ub,
     "sw_version_app1" / Int16ub,
@@ -43,67 +45,65 @@ Version = "version" / Struct(
     "beacon_version" / Int16ub,
 )
 
-SerialNumber = "serialno" / BytesInteger(12)
+SerialNumber = Struct(
+    "serialno" / BytesInteger(12),
+)
 
 
-class LampMode(enum.Enum):
-    Color = 0x01
-    White = 0x02
-    Flow = 0x03
+# REVIEW: Enum34 module should not be used unless absolutely necessary.
+# For equality use (parsed value) == LampMode.Color (its a string value).
+# If integer value is not mapped, parsing returns an integer not string.
+#
+# YOU NEED TO ADJUST OTHER CODE THAT USES THIS FIELD ALSO.
+#
+LampMode = Enum(Byte, 
+    Color = 0x01,
+    White = 0x02,
+    Flow = 0x03,
+)
 
 
 class TimeAdapter(Adapter):
-    def _encode(self, obj, context):
-        y = obj.year - 2000
-        return {'year': y, 'month': obj.month, 'day': obj.day,
-                'hour': obj.hour, 'minute': obj.minute, 'second': obj.second,
-                'dow': obj.weekday()}
+    def _decode(self, obj, context, path):
+        return datetime.datetime(
+            year=obj.year+2000, month=obj.month, day=obj.day,
+            hour=obj.hour, minute=obj.minute, second=obj.second,
+        )
 
-    def _decode(self, obj, context):
-        return datetime.datetime(year=2000+obj['year'],
-                                 month=obj['month'],
-                                 day=obj['day'],
-                                 hour=obj['hour'],
-                                 minute=obj['minute'],
-                                 second=obj['second'])
+    def _encode(self, obj, context, path):
+        return dict(
+            year=obj.year-2000, month=obj.month, day=obj.day,
+            hour=obj.hour, minute=obj.minute, second=obj.second,
+            dow=obj.weekday(),
+        )
 
 
 class HourMinuteAdapter(Adapter):
     """Converts 0x12 0x00 to 12:00 and otherway around."""
-    def _encode(self, obj, context):
-        return {'hour': obj.hour, 'minute': obj.minute}
-
-    def _decode(self, obj, context):
-        second = 0
-        if 'second' in obj:
-            second = obj['second']
-        return datetime.time(hour=obj['hour'], minute=obj['minute'], second=second)
-
-
-class ModeAdapter(Adapter):
-    """Note, mode is used for brightness with candela."""
-    def _encode(self, obj, context):
-        try:
-            return obj.value()
-        except:
-            return obj
-
-    def _decode(self, obj, context):
-        try:
-            return LampMode(obj)
-        except:
-            return obj
+    # REVIEW: this adapter is used with 2 different structs, only one has second field
+    def _decode(self, obj, context, path):
+        return datetime.time(
+            hour=obj.hour, minute=obj.minute, second=obj.get('second', 0),
+        )
+    # REVIEW: value 'second' was missing, would not build?
+    def _encode(self, obj, context, path):
+        return dict(
+            hour=obj.hour, minute=obj.minute, second=obj.second,
+        )
 
 
 class RawAsInt(Adapter):
     """Formats given byte's hex value as int."""
-    def _encode(self, obj, context):
-        bytearray.fromhex(str(obj).zfill(2))
-    def _decode(self, obj, context):
+    def _decode(self, obj, context, path):
         return int('{:02x}'.format(obj))
 
-Time = "time" / Struct(TimeAdapter(
-    "time" / Struct(
+    def _encode(self, obj, context, path):
+        # REVIEW: return was missing?
+        return bytearray.fromhex(str(obj).zfill(2))
+
+
+Time = Struct(
+    "time" / TimeAdapter(Struct(
         "second" / RawAsInt(Byte),
         "minute" / RawAsInt(Byte),
         "hour" / RawAsInt(Byte),
@@ -111,73 +111,76 @@ Time = "time" / Struct(TimeAdapter(
         "dow" / RawAsInt(Byte),
         "month" / RawAsInt(Byte),
         "year" / RawAsInt(Byte),
-        Probe(),
-)))
+    )),
+)
 
-HourMinute = "time" / Struct(HourMinuteAdapter(
-    "time" / Struct(
+HourMinute = Struct(
+    "time" / HourMinuteAdapter(Struct(
         "hour" / RawAsInt(Byte),
         "minute" / RawAsInt(Byte),
-    )
-))
+    )),
+)
 
-HourMinuteSecond = "time" / Struct(HourMinuteAdapter(
-    "time" / Struct(
+HourMinuteSecond = Struct(
+    "time" / HourMinuteAdapter(Struct(
         "hour" / RawAsInt(Byte),
         "minute" / RawAsInt(Byte),
         "second" / RawAsInt(Byte),
-    )
-))
-
-Statistics = "stats" / Struct(GreedyBytes)
-
-OnOff = "OnOff" / Struct(
-    "state" / SymmetricMapping(Byte, {True: 0x01, False: 0x02}, default=False)
+    )),
 )
 
-RGB = "rgb" / Struct(
-    "red" / Default(Int8ub, 0),
-    "green" / Default(Int8ub, 0),
-    "blue" / Default(Int8ub, 0),
+# REVIEW: This field should be named if you dont want to discard the parsed value,
+# and also to allow building it.
+Statistics = Struct(
+    GreedyBytes,
 )
 
-Color = "color" / Struct(
+# REVIEW: previously this had default=False, current code would fail on other values.
+# If you need those, use an Adapter to convert between booleans-integers.
+OnOff = Struct(
+    "state" / Mapping(Byte, {True: 0x01, False: 0x02})
+)
+
+RGB = Struct(
+    "red" / Default(Byte, 0),
+    "green" / Default(Byte, 0),
+    "blue" / Default(Byte, 0),
+)
+
+Color = Struct(
     Embedded(RGB),
-    "white" / Default(Int8ub, 0),
-    "brightness" / Default(Int8ub, 0),
+    "white" / Default(Byte, 0),
+    "brightness" / Default(Byte, 0),
 )
 
-WeekDayEnum = "weekdays" / FlagsEnum(Byte,
-                                     sun=0x01,
-                                     mon=0x02,
-                                     tue=0x04,
-                                     wed=0x08,
-                                     thu=0x10,
-                                     fri=0x20,
-                                     sat=0x40)
+WeekDayEnum = FlagsEnum(Byte, sun=0x01, mon=0x02, tue=0x04, wed=0x08, thu=0x10, fri=0x20, sat=0x40)
 
-Alarm = "alarm" / Struct(
+Alarm = Struct(
     "id" / Byte, # 1-6, 6 = wake up fall sleep mode, ff = end of list
     Embedded(HourMinuteSecond),
     "mode" / Enum(Byte, Single=0x01, RepeatDaily=0x02, RepeatOnDays=0x03),
-    "days" / Switch(this.mode, {
-        "Single": RawAsInt(Byte), # date in BCD
-        "RepeatDaily": Byte,
-        "RepeatOnDays": WeekDayEnum}, default=Byte),
+    "days" / Switch(this.mode, 
+        {
+            "Single": RawAsInt(Byte), # date in BCD
+            "RepeatDaily": Byte,
+            "RepeatOnDays": WeekDayEnum,
+        },
+        default=Byte,
+    ),
     "gradual_change" / Int16ub,
     "action" / Enum(Byte, Sunrise=0x01, Sunset=0x02, On=0x03, Off=0x04),
     "sync_phone" / Enum(Byte, Off=0x00, On=0x01),
     "enabled" / Enum(Byte, Off=0x00, On=0x01),
 )
 
-WakeUp = "wakeup" / Struct(
+WakeUp = Struct(
     "time" / Default(Int16ub, 0),
 )
 
 
-SetSleep = "setsleep" / Struct(
+SetSleep = Struct(
     "control" / Enum(Byte, Enable=0x01, Disable=0x02, Start=0x03, Stop=0x04),
-    "time" / Int8ub,
+    "time" / Byte,
 )
 
 # sleep off 30
@@ -186,7 +189,7 @@ SetSleep = "setsleep" / Struct(
 # 4381 01 1e 01 06 fc 0000000000000000000000
 # sleep on 15
 # 4381 01 0f 01 03 7b 0000000000000000000000
-SleepTimerResult = "sleeptimerresult" / Struct(
+SleepTimerResult = Struct(
     "enabled" / Enum(Byte, On=0x01, Off=0x02),
     "minutes" / Byte,
     "state" / Enum(Byte, Unknown=0, On=1, Off=2, Candela=15),
@@ -200,9 +203,9 @@ SleepTimerResult = "sleeptimerresult" / Struct(
 # 4343 0728 0000000000000000000000000000
 
 # 1700 - 6500 K
-Temperature = "temp" / Struct(
+Temperature = Struct(
     "temperature" / Int16ub,
-    "brightness" / Default(Int8ub, 255), # 1-100, invalids ignored
+    "brightness" / Default(Byte, 255), # 1-100, invalids ignored
 )
 
 # brightness max
@@ -213,7 +216,7 @@ Temperature = "temp" / Struct(
 # 4342 31 000000000000000000000000000000
 
 # 1-100
-Brightness = "brightness" / Struct(
+Brightness = Struct(
     "brightness" / Int8ub,
 )
 
@@ -229,39 +232,39 @@ Brightness = "brightness" / Struct(
 # 4371 00 01 0000 0500 00000000000000000000
 # hex is here the real value, so 1800 = 18:00, 0600 = 06:00
 
-NightMode = "nightmode" / Struct(
+NightMode = Struct(
     "state" / Enum(Byte, Off=0x00, On=0x01),
     "brightness" / Byte,
     "start" / HourMinute,
     "end" / HourMinute,
 )
 
-ColorFlow = "flow" / Struct(
+ColorFlow = Struct(
     "id" / Byte, # 1-5 scene, 6 for what?
     "pkt_num" / Byte,
     "cmd" / Byte, # 1 start, 2 set, 3 stop, 4 store
     "rgb_mode" / Byte, # 0 scene, 1 rgbb, 2 color temp
-    "color" / Embedded(Color),
-    "temperature" / Embedded(Temperature),
+    Embedded(Color),
+    Embedded(Temperature),
     "time" / Int16ub, # time range 0-600s
 )
 
 # TODO fixme incomplete, instead of RGB it should be temperature on two bytes when mode = temperature
-SimpleFlow = "simpleflow" / Struct(
+SimpleFlow = Struct(
     "id" / Byte, # 1-5 scene, 6?
     "type" / Enum(Byte, Color=0x01, Temperature=0x02),
-    "time" / Int8ub, # 0-255
+    "time" / Byte, # 0-255
     "control" / Byte,
     "first" / RGB,
     "second" / RGB,
     "third" / RGB,
-    "fourth" / RGB
+    "fourth" / RGB,
 )
 
 Scene = "scene" / Struct(
     "scene_id" / Byte, # 1-5
     "idx" / Default(Byte, 0),
-    "text" / PascalString(Byte, encoding='ascii'),
+    "text" / PascalString(Byte, 'ascii'),
 )
 
 #      ON MO  R  G  B    BR TEMP
@@ -271,85 +274,87 @@ Scene = "scene" / Struct(
 # 4345 01 02 00 00 00 00 64 078f 15000000000000
 
 StateResult = Struct(
-    "onoff" / Embedded(OnOff),
-    "mode" / ModeAdapter(Byte),
-    "color" / Embedded(Color),
+    Embedded(OnOff),
+    "mode" / LampMode,
+    Embedded(Color),
     "temperature" / Int16ub, #, as Temeprature contains brightness.
     "temp_fraction" / Default(Byte, 0),
 )
 
 # Using hardcoded devid, this may or may not work if you try to use different
 # bluetooth adapters (or devices) to control the same light.
-Pair = "Pair" / Struct(
-    "devid" / Default(Bytes(16), 0x1234))
+Pair = Struct(
+    "devid" / Default(Bytes(16), 0x1234),
+)
 
 # Note, requests with (mostly) even, responses with odd
+RequestType = Enum(Byte,
+    SetOnOff=0x40,
+    SetColor=0x41,
+    SetBrightness=0x42,
+    SetTemperature=0x43,
+    GetState=0x44,
+    SetAlarm=0x46,
+    GetAlarm=0x47,
+    DeleteAlarm=0x48,
+    SetFlow=0x4a,
+    SetFlowTimerBrightness=0x4b,
+    GetFlow=0x4b,
+    Candela_unknown=0x4c,
+    SetScene=0x4e,
+    GetScene=0x4f,
+    GetName=0x52,
+    EnableBeacon=0x54,
+    AddBeacon=0x55,
+    DeleteBeacon=0x56,
+    GetBeacon=0x57,
+    SetGradual=0x59,
+    GetGradual=0x5a,
+    GetVersion=0x5c,
+    GetSerialNumber=0x5e,
+    SetTime=0x60,
+    GetTime=0x61,
+    Pair=0x67,
+    SetNightMode=0x6f,
+    GetNightMode=0x70,
+    DeleteScene=0x73,
+    FactoryReset=0x74,
+    TestMode=0x75,
+    SetSimpleFlow=0x7c,
+    GetSimpleFlow=0x7d,
+    SimpleFlowResult=0x7e,
+    SetSleepTimer=0x7f,
+    GetSleepTimer=0x80,
+    SetWakeUp=0x88,
+    GetWakeUp=0x89,
+    GetStatistics=0x8c, # for testing only
+    Candela_A2=0xa2,
+    Candela_A3=0xa3,
+    Candela_A4=0xa4,
+)
 
-RequestType = "reqtype" / Enum(Byte,
-                               SetOnOff=0x40,
-                               SetColor=0x41,
-                               SetBrightness=0x42,
-                               SetTemperature=0x43,
-                               GetState=0x44,
-                               SetAlarm=0x46,
-                               GetAlarm=0x47,
-                               DeleteAlarm=0x48,
-                               SetFlow=0x4a,
-                               SetFlowTimerBrightness=0x4b,
-                               GetFlow=0x4b,
-                               Candela_unknown=0x4c,
-                               SetScene=0x4e,
-                               GetScene=0x4f,
-                               GetName=0x52,
-                               EnableBeacon=0x54,
-                               AddBeacon=0x55,
-                               DeleteBeacon=0x56,
-                               GetBeacon=0x57,
-                               SetGradual=0x59,
-                               GetGradual=0x5a,
-                               GetVersion=0x5c,
-                               GetSerialNumber=0x5e,
-                               SetTime=0x60,
-                               GetTime=0x61,
-                               Pair=0x67,
-                               SetNightMode=0x6f,
-                               GetNightMode=0x70,
-                               DeleteScene=0x73,
-                               FactoryReset=0x74,
-                               TestMode=0x75,
-                               SetSimpleFlow=0x7c,
-                               GetSimpleFlow=0x7d,
-                               SimpleFlowResult=0x7e,
-                               SetSleepTimer=0x7f,
-                               GetSleepTimer=0x80,
-                               SetWakeUp=0x88,
-                               GetWakeUp=0x89,
-                               GetStatistics=0x8c, # for testing only
-                               Candela_A2=0xa2,
-                               Candela_A3=0xa3,
-                               Candela_A4=0xa4,
-                               )
-
-Request = "msg" / Padded(18, Struct(
-    Const(0x43, Int8ub),
-    "type" / RequestType,
-    "payload" / Embedded(
-        Switch(this.type, {
-            "SetOnOff": OnOff,
-            "SetColor": Color,
-            "SetBrightness": Brightness,
-            "SetTemperature": Temperature,
+Request = Padded(18,
+    Struct(
+        Const(0x43, Byte),
+        "type" / RequestType,
+        "payload" / Switch(
+        this.type,
+        {
+            "SetOnOff": Default(OnOff, Pass),
+            "SetColor": Default(Color, Pass),
+            "SetBrightness": Default(Brightness, Pass),
+            "SetTemperature": Default(Temperature, Pass),
             "Pair": Pair,
-            "GetAlarm": Struct("id" / Byte), # 1-6, 255
-            "GetScene": Struct("id" / Byte), # 1-6, 255
-            "GetSimpleFlow": Struct("id" / Byte),
-            "SetScene": Scene,
-        }, default=Pass),
-    ),
-))
+            "GetAlarm": Default(Struct("id" / Byte), Pass), # 1-6, 255
+            "GetScene": Default(Struct("id" / Byte), Pass), # 1-6, 255
+            "GetSimpleFlow": Default(Struct("id" / Byte), Pass),
+            "SetScene": Default(Scene, Pass),
+        }
+        ),
+    )
+)
 
-ResponseType = "type" / Enum(
-    Byte,
+ResponseType = Enum(Byte,
     StateResult=0x45,
     AlarmResult=0x49,
     FlowMode=0x4a,
@@ -369,15 +374,15 @@ ResponseType = "type" / Enum(
     #WakeUpResult=0x89,
     WakeUpResult=0x8a,
     StatisticsResult=0x8d,
-
 )
 
-Response = "msg" / Padded(
-    18,
-    Struct(Const(0x43, Int8ub),
-         "type" / ResponseType,
-         "payload" / Embedded(
-             Switch(this.type, {
+Response = Padded(18,
+    Struct(
+        Const(0x43, Byte),
+        "type" / ResponseType,
+        "payload" / Switch(
+            this.type,
+            {
                 "Color": Color,
                 "StateResult": StateResult,
                 "AlarmResult": Alarm,
@@ -395,7 +400,7 @@ Response = "msg" / Padded(
                 "Pair": Pair,
                 "PairingResult": PairingStatus,
                 "GetNameResult": Name,
-            }, default=Pass)
-         )
+            }
+        )
     )
 )

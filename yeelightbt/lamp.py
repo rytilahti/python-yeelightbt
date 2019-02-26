@@ -23,14 +23,15 @@ def cmd(cmd):
             if "wait" in params:
                 wait = params["wait"]
                 del params["wait"]
-            query.update(params)
+            query["payload"] = params
 
         _LOGGER.debug(">> %s (wait: %s)", query, wait)
         _ex = None
         try_count = 3
         while try_count > 0:
             try:
-                res = self.control_char.write(Request.build(query),
+                request_bytes = Request.build(query)
+                res = self.control_char.write(request_bytes,
                                               withResponse=True)
                 self._conn.wait(wait)
 
@@ -38,6 +39,7 @@ def cmd(cmd):
             except Exception as ex:
                 _LOGGER.error("got exception on %s, tries left %s: %s",
                               query, try_count, ex)
+                raise
                 _ex = ex
                 try_count -= 1
                 self.connect()
@@ -101,6 +103,10 @@ class Lamp:
                                 struct.pack("<BB", 0x01, 0x00),
                                 timeout=None)
         self.pair()
+
+    def wait_for_notifications(self):
+        while True:
+            self._conn.wait(1)
 
     def disconnect(self):
         self._conn.disconnect()
@@ -231,13 +237,13 @@ class Lamp:
     def handle_notification(self, data):
         _LOGGER.debug("<< %s", codecs.encode(data, 'hex'))
         res = Response.parse(data)
-        print(res)
+        payload = res.payload
         if res.type == "StateResult":
-            self._is_on = res.state
-            self._mode = res.mode
-            self._rgb = (res.red, res.green, res.blue, res.white)
-            self._brightness = res.brightness
-            self._temperature = res.temperature
+            self._is_on = payload.state
+            self._mode = payload.mode
+            self._rgb = (payload.red, payload.green, payload.blue, payload.white)
+            self._brightness = payload.brightness
+            self._temperature = payload.temperature
 
             if self._status_cb:
                 self._status_cb(self)
