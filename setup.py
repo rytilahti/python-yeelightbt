@@ -5,7 +5,7 @@ with open('yeelightbt/version.py') as f: exec(f.read())
 setup(
     name='python-yeelightbt',
 
-    version='0.0.3.1',
+    version=__version__,
     description='Python library for interfacing with yeelight\'s bt lights',
     url='https://github.com/rytilahti/python-yeelightbt',
 
