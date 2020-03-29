@@ -1,0 +1,13 @@
+{
+  "domain": "yeelightbt",
+  "name": "Yeelight Bluetooth Lamps (Bedside, Candela)",
+  "config_flow": false,
+  "documentation": "",
+  "requirements": [],
+  "ssdp": {},
+  "homekit": {},
+  "dependencies": [],
+  "codeowners": [
+    "@rytilahti"
+  ]
+}
