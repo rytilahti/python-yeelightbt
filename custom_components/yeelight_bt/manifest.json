@@ -2,7 +2,7 @@
   "domain": "yeelight_bt",
   "name": "Yeelight Bluetooth Lamps (Bedside, Candela)",
   "config_flow": false,
-  "documentation": "",
+  "documentation": "https://github.com/rytilahti/python-yeelightbt",
   "requirements": [],
   "ssdp": {},
   "homekit": {},

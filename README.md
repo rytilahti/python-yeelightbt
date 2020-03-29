@@ -85,8 +85,17 @@ Setting color: 255 0 0
 
 # Homeassistant support
 
-There is also a WIP [Home Assistant](https://home-assistant.io/) component stored inside custom_components.
-Just copy the file over to `~/.homeassistant/custom_components/light/` and add the following into your config:
+This repository also contains a basic [Home Assistant](https://home-assistant.io/) custom component.
+
+## HACS installation
+
+This repository can be added as a custom repository to [HACS](https://hacs.xyz/).
+
+## Manual Installation
+
+Just copy `yeelight_bt` directory located under `custom_components` over to `~/.homeassistant/custom_components/`.
+
+## Configuration
 
 ```
 light:
