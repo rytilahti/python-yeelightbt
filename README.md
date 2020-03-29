@@ -1,9 +1,10 @@
 # Python library for Yeelight Bedside lamp
 
-This is an ongoing effort to create a python library for [Yeelight's bedside lamp](http://www.yeelight.com/en_US/product/yeelight-ctd) and Yeelight Candela.
-Candelas support only setting the light on and off, and adjusting the brightness.
+This library allows controlling Yeelight's bluetooth-enabled [bedside lamp](http://www.yeelight.com/en_US/product/yeelight-ctd) and [Candela](https://www.yeelight.com/en_US/product/gingko) devices.
 
-Patches are very welcome, if you intent to contribute, please do note that quite a lot of the protocol is already figured out but lacking interfaces.
+**Note that this library is not actively maintained, however, patches are very welcome.**
+
+Candelas support only setting the light on and off, and adjusting the brightness.
 
 Currently supported features:
 * State
@@ -11,10 +12,6 @@ Currently supported features:
 * Temperature
 * Brightness
 * Sleep, wakeup & scheduling (partially)
-
-TBD:
-* Flow mode
-* Other features?
 
 # Installation
 
@@ -87,9 +84,6 @@ Setting color: 255 0 0
 
 This repository also contains a basic [Home Assistant](https://home-assistant.io/) custom component.
 
-## HACS installation
-
-This repository can be added as a custom repository to [HACS](https://hacs.xyz/).
 
 ## Manual Installation
 

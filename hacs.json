@@ -1,6 +1,0 @@
-{
-  "name": "Yeelight Bluetooth Lamps (Bedside, Candela)",
-  "domains": ["light"],
-  "iot_class": "local_pull",
-  "render_readme": true
-}
